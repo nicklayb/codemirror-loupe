@@ -1,0 +1,158 @@
+@top Query {
+  Statement
+}
+
+Statement {
+  Command Quantifier? Schema Parameters? WhereClause?
+}
+
+Command {
+  Identifier
+}
+
+WhereClause {
+  kw<"where"> Predicate
+}
+
+Predicate {
+  OrPredicate
+}
+
+OrPredicate {
+  AndPredicate (or AndPredicate)*
+}
+
+AndPredicate {
+  NotPredicate (and NotPredicate)*
+}
+
+NotPredicate {
+  not? ComparisonPredicate
+}
+
+ComparisonPredicate {
+  "(" Predicate ")" |
+  FieldGroup ComparisonOp Value |
+  FieldGroup InOp List |
+  FieldGroup LikeOp String |
+  FieldPathBase ":" kw<"empty">
+}
+
+FieldGroup {
+  FieldPath (GroupedOp FieldPath)*
+}
+
+GroupedOp {
+  "|" | "&"
+}
+
+FieldPath {
+  FieldPathBase FieldVariant? PathBinding?
+}
+
+FieldPathBase {
+  Identifier (PathSeparator Identifier)*
+}
+
+FieldVariant {
+  ":" Identifier
+}
+
+PathBinding {
+  "[" Identifier ("," Identifier)* "]"
+}
+
+Schema {
+  Identifier
+}
+
+Parameters {
+  "{" ParameterList? "}"
+}
+
+ParameterList {
+  Parameter ("," Parameter)*
+}
+
+Parameter {
+  Identifier ":" Value
+}
+
+Value {
+  String | Number | Boolean | Identifier
+}
+
+List {
+  "[" (Value ("," Value)*)? "]"
+}
+
+Quantifier {
+  Number Range? Multiplier? |
+  kw<"all">
+}
+
+Range {
+  ".." Number
+}
+
+Multiplier {
+  multiplierK | multiplierM
+}
+
+ComparisonOp {
+  "=" | "!=" | "<" | ">" | "<=" | ">="
+}
+
+InOp {
+  kw<"in">
+}
+
+LikeOp {
+  kw<"like">
+}
+
+PathSeparator {
+  "."
+}
+
+@skip { space | Comment }
+
+@tokens {
+  space { $[ \t\n\r]+ }
+
+  Comment { "#" ![\n]* }
+
+  Identifier { $[a-zA-Z_]$[a-zA-Z0-9_]* }
+
+  Number { $[0-9]+ }
+
+  String {
+    '"' (!["\\] | "\\" _)* '"' |
+    "'" (!['\\] | "\\" _)* "'"
+  }
+
+  Boolean {
+    "true" | "false"
+  }
+
+  and { "and" }
+  or { "or" }
+  not { "not" }
+
+  multiplierK { "k" }
+  multiplierM { "m" }
+
+  @precedence { Boolean, Identifier }
+  @precedence { and, Identifier }
+  @precedence { or, Identifier }
+  @precedence { not, Identifier }
+  @precedence { multiplierK, Identifier }
+  @precedence { multiplierM, Identifier }
+
+  "(" ")" "[" "]" "{" "}"
+  "=" "!=" "<" ">" "<=" ">="
+  ":" "," ".." "."
+  "|" "&"
+}
+
+kw<term> { @specialize[@name={term}]<Identifier, term> }

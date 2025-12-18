@@ -1,0 +1,47 @@
+{
+  "name": "@nicklayb/codemirror-loupe",
+  "version": "0.1.0",
+  "description": "CodeMirror language support for Loupe query language",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build:parser": "lezer-generator src/grammar.lezer -o src/parser",
+    "build": "npm run build:parser && rollup -c",
+    "dev": "vite example/",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "codemirror",
+    "lezer",
+    "syntax",
+    "loupe",
+    "query-language"
+  ],
+  "author": "Nicolas Boisvert",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicklayb/codemirror-loupe"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.12.0",
+    "@codemirror/language": "^6.10.0",
+    "@lezer/lr": "^1.4.0"
+  },
+  "devDependencies": {
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.24.0",
+    "@lezer/generator": "^1.7.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^11.1.6",
+    "codemirror": "^6.0.1",
+    "rollup": "^4.9.6",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
+  }
+}

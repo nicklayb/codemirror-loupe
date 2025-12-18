@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loupe Query Language - CodeMirror Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: white;
+      margin-bottom: 0.5rem;
+      font-size: 2.5rem;
+    }
+
+    .subtitle {
+      color: rgba(255, 255, 255, 0.9);
+      margin-bottom: 2rem;
+      font-size: 1.1rem;
+    }
+
+    .editor-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .editor-header {
+      background: #f7fafc;
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #ff5f56; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #27c93f; }
+
+    .editor-title {
+      margin-left: auto;
+      color: #64748b;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    #editor {
+      min-height: 400px;
+      font-size: 16px;
+    }
+
+    .examples {
+      background: white;
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .examples h2 {
+      color: #1e293b;
+      margin-bottom: 1rem;
+      font-size: 1.5rem;
+    }
+
+    .example {
+      background: #f8fafc;
+      border-left: 4px solid #667eea;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 4px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 0.875rem;
+      color: #334155;
+    }
+
+    .example:last-child {
+      margin-bottom: 0;
+    }
+
+    .example-label {
+      color: #64748b;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 Loupe Query Language</h1>
+    <p class="subtitle">Interactive CodeMirror editor with syntax highlighting for Loupe queries</p>
+
+    <div class="editor-container">
+      <div class="editor-header">
+        <span class="dot red"></span>
+        <span class="dot yellow"></span>
+        <span class="dot green"></span>
+        <span class="editor-title">query.loupe</span>
+      </div>
+      <div id="editor"></div>
+    </div>
+
+    <div class="examples">
+      <h2>Example Queries</h2>
+
+      <div class="example">
+        <div class="example-label">Basic Query</div>
+        get User where email = "user@example.com"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with Quantifier</div>
+        get 10 Post where status = "published" and views &gt; 1k
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with Range</div>
+        get 5..10 Comment where created_at &gt; "2024-01-01"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with Parameters</div>
+        get Article {title: "Hello", draft: false} where author_id = user_id
+      </div>
+
+      <div class="example">
+        <div class="example-label">Complex Query with Nested Conditions</div>
+        get all Transaction where (amount &gt;= 100 and amount &lt;= 1000) or status = "pending"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with IN operator</div>
+        get User where role in ["admin", "moderator"]
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with LIKE operator</div>
+        get Product where name like "iPhone"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with Field Variant</div>
+        get Account where balance:amount &gt;= 10k
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with Path Binding</div>
+        get User where role.permissions[posts, access] = "write"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Grouped Field OR (|)</div>
+        get Post where title | description like "search term"
+      </div>
+
+      <div class="example">
+        <div class="example-label">Grouped Field AND (&amp;)</div>
+        get Product where price &amp; discount &gt; 100
+      </div>
+
+      <div class="example">
+        <div class="example-label">Query with NOT and EMPTY</div>
+        get Document where not status:empty and published = true
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
