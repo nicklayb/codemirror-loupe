@@ -155,9 +155,7 @@ class Matcher {
 
     this.schemaName = schemaName;
 
-    // Check for field path with dots (e.g., "user.role.")
     const fieldPathMatch = this.textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
-    console.log({ fieldPathMatch, schemaName })
     if (fieldPathMatch && this.schemaName) {
       const fullPath = fieldPathMatch[1];
       const partial = fieldPathMatch[2];
@@ -260,7 +258,6 @@ class Matcher {
         const match = await rule()
 
         if (match) {
-          console.log(rule.name)
           return match
         }
       } catch (error: any) {
@@ -286,127 +283,4 @@ export function loupeCompletion(config: LoupeCompletionConfig) {
     return await matcher.getCompletion();
   }
 }
-function __loupeCompletion(config: LoupeCompletionConfig) {
-  return async (context: CompletionContext): Promise<CompletionResult | null> => {
-    const { state, pos } = context;
-    const textBefore = state.doc.sliceString(0, pos);
-    const line = state.doc.lineAt(pos);
-    const lineText = line.text;
-    const cursorInLine = pos - line.from;
-    const textBeforeInLine = lineText.slice(0, cursorInLine);
 
-    // Check if we're at the start (command position)
-    if (/^\s*$/.test(textBeforeInLine) || /^\s*\w*$/.test(textBeforeInLine)) {
-      const commands = await config.getCommands();
-      return {
-        from: pos - (textBeforeInLine.match(/\w+$/)?.[0].length || 0),
-        options: commands,
-        validFor: /^\w*$/
-      };
-    }
-
-    // Check if we're after a command (schema position)
-    // Match patterns like "get ", "get 10 ", "get all ", "find 5..10 "
-    const commandMatch = textBeforeInLine.match(/^(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w*)$/);
-    if (commandMatch) {
-      const command = commandMatch[1];
-      const partial = commandMatch[2];
-      const schemas = await config.getSchemas(command);
-      return {
-        from: pos - partial.length,
-        options: schemas,
-        validFor: /^\w*$/
-      };
-    }
-
-    const schemaName = extractSchema(textBefore);
-    if (!schemaName) {
-      return null;
-    }
-
-    // Check for field path with dots (e.g., "user.role.")
-    const fieldPathMatch = textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
-    if (fieldPathMatch) {
-      const fullPath = fieldPathMatch[1];
-      const partial = fieldPathMatch[2];
-      const fieldPath = fullPath.split('.');
-
-      const fields = await config.getFields({
-        schema: schemaName,
-        fieldPath,
-        type: 'field'
-      });
-
-      return {
-        from: pos - partial.length,
-        options: fields,
-        validFor: /^[\w]*$/
-      };
-    }
-
-    // Check if we're after "where" (field position)
-    if (/\bwhere\s+(\w*)$/.test(textBeforeInLine)) {
-      const partial = textBeforeInLine.match(/\bwhere\s+(\w*)$/)?.[1] || '';
-      const fields = await config.getFields({
-        schema: schemaName,
-        fieldPath: [],
-        type: 'field'
-      });
-
-      return {
-        from: pos - partial.length,
-        options: fields,
-        validFor: /^[\w]*$/
-      };
-    }
-
-    // Check if we're typing a field name (after "and" or "or" or in parentheses)
-    const afterLogicMatch = textBeforeInLine.match(/(?:and|or|\()\s+([\w.]*)$/);
-    if (afterLogicMatch) {
-      const pathText = afterLogicMatch[1];
-      const partial = pathText.split('.').pop() || '';
-      const pathParts = pathText.split('.');
-      pathParts.pop(); // Remove the partial part
-
-      const fields = await config.getFields({
-        schema: schemaName,
-        fieldPath: pathParts.filter(p => p.length > 0),
-        type: 'field'
-      });
-
-      const allOptions = [...fields, ...KEYWORDS.filter(k => ['not'].includes(k.label))];
-
-      return {
-        from: pos - partial.length,
-        options: allOptions,
-        validFor: /^[\w]*$/
-      };
-    }
-
-    // Check if we're after a field name (operator position)
-    const afterFieldMatch = textBeforeInLine.match(/\b([\w.]+)\s+(\S*)$/);
-    if (afterFieldMatch && !['where', 'and', 'or', 'not', 'in', 'like', 'all'].includes(afterFieldMatch[1])) {
-      const partial = afterFieldMatch[2];
-      return {
-        from: pos - partial.length,
-        options: [...OPERATORS,
-        { label: 'in', type: 'keyword', info: 'Check if value is in list', detail: undefined },
-        { label: 'like', type: 'keyword', info: 'Pattern matching', detail: undefined }
-        ],
-        validFor: /^[=!<>]*$/
-      };
-    }
-
-    // Check if we're in a where clause (keywords and operators)
-    if (/\bwhere\b/.test(textBefore)) {
-      const partial = textBeforeInLine.match(/\w+$/)?.[0] || '';
-      return {
-        from: pos - partial.length,
-        options: KEYWORDS.filter(k => !['all'].includes(k.label)),
-        validFor: /^\w*$/
-      };
-    }
-
-    return null;
-  };
-}
