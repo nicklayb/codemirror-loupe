@@ -8,7 +8,6 @@ import {
 } from '@codemirror/language';
 import { loupeHighlighting } from './highlight.js';
 
-// Re-export autocomplete types and functions
 export {
   loupeCompletion,
   type LoupeCompletionConfig,
@@ -17,9 +16,6 @@ export {
   type FieldProvider
 } from './autocomplete.js';
 
-/**
- * Loupe language definition for CodeMirror.
- */
 export const loupeLanguage = LRLanguage.define({
   name: 'loupe',
   parser: parser.configure({
@@ -37,9 +33,6 @@ export const loupeLanguage = LRLanguage.define({
       loupeHighlighting
     ]
   }),
-  languageData: {
-    commentTokens: { line: '#' }
-  }
 });
 
 /**

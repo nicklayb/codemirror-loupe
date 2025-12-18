@@ -1,37 +1,20 @@
 import { CompletionContext, CompletionResult, Completion } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
 
-/**
- * Completion context passed to callback functions
- */
 export interface LoupeCompletionContext {
-  /** The schema name being queried (e.g., "User") */
   schema: string;
-  /** The field path typed so far (e.g., ["user", "role"] for "user.role.") */
   fieldPath: string[];
-  /** Type of completion being requested */
   type: 'schema' | 'field' | 'operator' | 'keyword' | 'command';
 }
 
-/**
- * Callback for providing schemas
- */
 export type SchemaProvider = (command: string) => Completion[] | Promise<Completion[]>;
 
-/**
- * Callback for providing fields based on the current context
- */
 export type FieldProvider = (context: LoupeCompletionContext) => Completion[] | Promise<Completion[]>;
 
-/**
- * Configuration for Loupe autocompletion
- */
+export type CommandProvider = () => Completion[] | Promise<Completion[]>
+
 export interface LoupeCompletionConfig {
-  /** Callback to provide available commands (e.g., get, find, fetch) */
-  getCommands: () => Completion[] | Promise<Completion[]>;
-  /** Callback to provide available schemas */
+  getCommands: CommandProvider;
   getSchemas: SchemaProvider;
-  /** Callback to provide fields for a given schema and path */
   getFields: FieldProvider;
 }
 
@@ -54,43 +37,6 @@ const OPERATORS: Completion[] = [
   { label: '>=', type: 'operator', info: 'Greater than or equal', detail: undefined },
   { label: '<=', type: 'operator', info: 'Less than or equal', detail: undefined }
 ];
-
-/**
- * Extract field path from text (e.g., "user.role.name" -> ["user", "role", "name"])
- */
-function extractFieldPath(text: string): string[] {
-  const match = text.match(/([\w.]+)\.(\w*)$/);
-  if (match) {
-    const fullPath = match[1];
-    const parts = fullPath.split('.');
-    return parts;
-  }
-  return [];
-}
-
-/**
- * Extract schema name from the query
- * Looks backwards from the cursor to find the schema in the current statement
- */
-function extractSchema(text: string): string | null {
-  const lines = text.split('\n');
-
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const line = lines.slice(0, i + 1).join('\n');
-    // Match command + optional quantifier + schema name
-    const match = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)(?:\s+\{.*?\})?\s+where\b/);
-    if (match) {
-      return match[2];
-    }
-
-    const simpleMatch = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)\s*$/);
-    if (simpleMatch && i === lines.length - 1) {
-      return simpleMatch[2];
-    }
-  }
-
-  return null;
-}
 
 class MissingRequiredSchema extends Error {
   constructor() {
@@ -122,6 +68,25 @@ class Matcher {
     this.textBeforeInLine = this.lineText.slice(0, this.cursorInLine);
   }
 
+  extractSchema() {
+    const lines = this.textBefore.split('\n');
+
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines.slice(0, i + 1).join('\n');
+      const match = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)(?:\s+\{.*?\})?\s+where\b/);
+      if (match) {
+        return match[2];
+      }
+
+      const simpleMatch = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)\s*$/);
+      if (simpleMatch && i === lines.length - 1) {
+        return simpleMatch[2];
+      }
+    }
+
+    return null;
+  }
+
   async listCommands() {
     if (/^\s*$/.test(this.textBeforeInLine) || /^\s*\w*$/.test(this.textBeforeInLine)) {
       const commands = await this.config.getCommands();
@@ -148,12 +113,10 @@ class Matcher {
   }
 
   async listNestedFields() {
-    const schemaName = extractSchema(this.textBefore);
-    if (!schemaName) {
+    this.schemaName = this.extractSchema();
+    if (!this.schemaName) {
       throw new MissingRequiredSchema();
     }
-
-    this.schemaName = schemaName;
 
     const fieldPathMatch = this.textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
     if (fieldPathMatch && this.schemaName) {
@@ -272,10 +235,6 @@ class Matcher {
   }
 }
 
-
-/**
- * Creates a Loupe autocompletion source
- */
 export function loupeCompletion(config: LoupeCompletionConfig) {
   return async (context: CompletionContext): Promise<CompletionResult | null> => {
     const matcher = new Matcher(config, context);
