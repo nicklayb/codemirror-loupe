@@ -23,7 +23,7 @@ Loupe is a query language for safe and configurable inspection of Ecto schemas i
 ## Installation
 
 ```bash
-npm install @nicklayb/codemirror-lang-loupe
+npm install @nicklayb/codemirror-loupe
 ```
 
 ## Usage
