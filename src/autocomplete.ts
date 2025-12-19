@@ -1,6 +1,7 @@
 import { CompletionContext, CompletionResult, Completion } from '@codemirror/autocomplete';
 
 export interface LoupeCompletionContext {
+  command: string;
   schema: string;
   fieldPath: string[];
   type: 'schema' | 'field' | 'operator' | 'keyword' | 'command';
@@ -38,6 +39,12 @@ const OPERATORS: Completion[] = [
   { label: '<=', type: 'operator', info: 'Less than or equal', detail: undefined }
 ];
 
+class MissingRequiredCommand extends Error {
+  constructor() {
+    super("Expected command to be read, found none");
+    this.name = 'MissingRequiredCommand';
+  }
+}
 class MissingRequiredSchema extends Error {
   constructor() {
     super("Expected schema to be read, found none");
@@ -54,6 +61,7 @@ class Matcher {
   private lineText;
   private cursorInLine;
   private textBeforeInLine;
+  private command: string | null = null;
   private schemaName: string | null = null;
 
   constructor(config: LoupeCompletionConfig, context: CompletionContext) {
@@ -87,6 +95,15 @@ class Matcher {
     return null;
   }
 
+  extractCommand() {
+    const commandMatch = this.textBefore.match(/^(\w+)\s+/)
+
+    if (commandMatch && commandMatch[1]) {
+      return commandMatch[1]
+    }
+    return null
+  }
+
   async listCommands() {
     if (/^\s*$/.test(this.textBeforeInLine) || /^\s*\w*$/.test(this.textBeforeInLine)) {
       const commands = await this.config.getCommands();
@@ -117,14 +134,19 @@ class Matcher {
     if (!this.schemaName) {
       throw new MissingRequiredSchema();
     }
+    this.command = this.extractCommand();
+    if (!this.command) {
+      throw new MissingRequiredCommand();
+    }
 
     const fieldPathMatch = this.textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
-    if (fieldPathMatch && this.schemaName) {
+    if (fieldPathMatch && this.schemaName && this.command) {
       const fullPath = fieldPathMatch[1];
       const partial = fieldPathMatch[2];
       const fieldPath = fullPath.split('.');
 
       const fields = await this.config.getFields({
+        command: this.command,
         schema: this.schemaName,
         fieldPath,
         type: 'field'
@@ -139,9 +161,10 @@ class Matcher {
   }
 
   async listFields() {
-    if (/\bwhere\s+(\w*)$/.test(this.textBeforeInLine) && this.schemaName) {
+    if (/\bwhere\s+(\w*)$/.test(this.textBeforeInLine) && this.schemaName && this.command) {
       const partial = this.textBeforeInLine.match(/\bwhere\s+(\w*)$/)?.[1] || '';
       const fields = await this.config.getFields({
+        command: this.command,
         schema: this.schemaName,
         fieldPath: [],
         type: 'field'
@@ -157,13 +180,14 @@ class Matcher {
 
   async listKeywordOperators() {
     const afterLogicMatch = this.textBeforeInLine.match(/(?:and|or|\()\s+([\w.]*)$/);
-    if (afterLogicMatch && this.schemaName) {
+    if (afterLogicMatch && this.schemaName && this.command) {
       const pathText = afterLogicMatch[1];
       const partial = pathText.split('.').pop() || '';
       const pathParts = pathText.split('.');
       pathParts.pop();
 
       const fields = await this.config.getFields({
+        command: this.command,
         schema: this.schemaName,
         fieldPath: pathParts.filter((part: string) => part.length > 0),
         type: 'field'
@@ -224,7 +248,7 @@ class Matcher {
           return match
         }
       } catch (error: any) {
-        if (error instanceof MissingRequiredSchema) {
+        if (error instanceof MissingRequiredSchema || error instanceof MissingRequiredCommand) {
           return null
         }
         throw error
