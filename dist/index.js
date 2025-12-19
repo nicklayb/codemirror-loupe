@@ -65,145 +65,178 @@ const OPERATORS = [
     { label: '>=', type: 'operator', info: 'Greater than or equal', detail: undefined },
     { label: '<=', type: 'operator', info: 'Less than or equal', detail: undefined }
 ];
-/**
- * Extract schema name from the query
- * Looks backwards from the cursor to find the schema in the current statement
- */
-function extractSchema(text) {
-    // Find the last occurrence of a command followed by optional quantifier and schema
-    // This handles multi-line queries by finding the most recent command
-    const lines = text.split('\n');
-    // Go backwards through lines to find the schema
-    for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines.slice(0, i + 1).join('\n');
-        // Match command + optional quantifier + schema name
-        const match = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)(?:\s+\{.*?\})?\s+where\b/);
-        if (match) {
-            return match[2];
-        }
-        // Also try simpler pattern for when we haven't typed "where" yet
-        const simpleMatch = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)\s*$/);
-        if (simpleMatch && i === lines.length - 1) {
-            return simpleMatch[2];
-        }
+class MissingRequiredSchema extends Error {
+    constructor() {
+        super("Expected schema to be read, found none");
+        this.name = 'MissingRequiredSchema';
     }
-    return null;
 }
-/**
- * Creates a Loupe autocompletion source
- */
-function loupeCompletion(config) {
-    return async (context) => {
+class Matcher {
+    constructor(config, context) {
+        this.schemaName = null;
         const { state, pos } = context;
-        const textBefore = state.doc.sliceString(0, pos);
-        const line = state.doc.lineAt(pos);
-        const lineText = line.text;
-        const cursorInLine = pos - line.from;
-        const textBeforeInLine = lineText.slice(0, cursorInLine);
-        // Check if we're at the start (command position)
-        if (/^\s*$/.test(textBeforeInLine) || /^\s*\w*$/.test(textBeforeInLine)) {
-            const commands = await config.getCommands();
+        this.config = config;
+        this.position = pos;
+        this.textBefore = state.doc.sliceString(0, pos);
+        this.line = state.doc.lineAt(pos);
+        this.lineText = this.line.text;
+        this.cursorInLine = pos - this.line.from;
+        this.textBeforeInLine = this.lineText.slice(0, this.cursorInLine);
+    }
+    extractSchema() {
+        const lines = this.textBefore.split('\n');
+        for (let i = lines.length - 1; i >= 0; i--) {
+            const line = lines.slice(0, i + 1).join('\n');
+            const match = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)(?:\s+\{.*?\})?\s+where\b/);
+            if (match) {
+                return match[2];
+            }
+            const simpleMatch = line.match(/\b(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w+)\s*$/);
+            if (simpleMatch && i === lines.length - 1) {
+                return simpleMatch[2];
+            }
+        }
+        return null;
+    }
+    async listCommands() {
+        if (/^\s*$/.test(this.textBeforeInLine) || /^\s*\w*$/.test(this.textBeforeInLine)) {
+            const commands = await this.config.getCommands();
             return {
-                from: pos - (textBeforeInLine.match(/\w+$/)?.[0].length || 0),
+                from: this.position - (this.textBeforeInLine.match(/\w+$/)?.[0].length || 0),
                 options: commands,
                 validFor: /^\w*$/
             };
         }
-        // Check if we're after a command (schema position)
-        // Match patterns like "get ", "get 10 ", "get all ", "find 5..10 "
-        const commandMatch = textBeforeInLine.match(/^(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w*)$/);
+    }
+    async listSchemas() {
+        const commandMatch = this.textBeforeInLine.match(/^(\w+)\s+(?:\d+\.\.\d+|\d+[km]?|all)?\s*(\w*)$/);
         if (commandMatch) {
+            const command = commandMatch[1];
             const partial = commandMatch[2];
-            const schemas = await config.getSchemas();
+            const schemas = await this.config.getSchemas(command);
             return {
-                from: pos - partial.length,
+                from: this.position - partial.length,
                 options: schemas,
                 validFor: /^\w*$/
             };
         }
-        const schemaName = extractSchema(textBefore);
-        if (!schemaName) {
-            return null;
+    }
+    async listNestedFields() {
+        this.schemaName = this.extractSchema();
+        if (!this.schemaName) {
+            throw new MissingRequiredSchema();
         }
-        // Check for field path with dots (e.g., "user.role.")
-        const fieldPathMatch = textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
-        if (fieldPathMatch) {
+        const fieldPathMatch = this.textBeforeInLine.match(/([\w.]+)\.(\w*)$/);
+        if (fieldPathMatch && this.schemaName) {
             const fullPath = fieldPathMatch[1];
             const partial = fieldPathMatch[2];
             const fieldPath = fullPath.split('.');
-            const fields = await config.getFields({
-                schema: schemaName,
+            const fields = await this.config.getFields({
+                schema: this.schemaName,
                 fieldPath,
                 type: 'field'
             });
             return {
-                from: pos - partial.length,
+                from: this.position - partial.length,
                 options: fields,
                 validFor: /^[\w]*$/
             };
         }
-        // Check if we're after "where" (field position)
-        if (/\bwhere\s+(\w*)$/.test(textBeforeInLine)) {
-            const partial = textBeforeInLine.match(/\bwhere\s+(\w*)$/)?.[1] || '';
-            const fields = await config.getFields({
-                schema: schemaName,
+    }
+    async listFields() {
+        if (/\bwhere\s+(\w*)$/.test(this.textBeforeInLine) && this.schemaName) {
+            const partial = this.textBeforeInLine.match(/\bwhere\s+(\w*)$/)?.[1] || '';
+            const fields = await this.config.getFields({
+                schema: this.schemaName,
                 fieldPath: [],
                 type: 'field'
             });
             return {
-                from: pos - partial.length,
+                from: this.position - partial.length,
                 options: fields,
                 validFor: /^[\w]*$/
             };
         }
-        // Check if we're typing a field name (after "and" or "or" or in parentheses)
-        const afterLogicMatch = textBeforeInLine.match(/(?:and|or|\()\s+([\w.]*)$/);
-        if (afterLogicMatch) {
+    }
+    async listKeywordOperators() {
+        const afterLogicMatch = this.textBeforeInLine.match(/(?:and|or|\()\s+([\w.]*)$/);
+        if (afterLogicMatch && this.schemaName) {
             const pathText = afterLogicMatch[1];
             const partial = pathText.split('.').pop() || '';
             const pathParts = pathText.split('.');
-            pathParts.pop(); // Remove the partial part
-            const fields = await config.getFields({
-                schema: schemaName,
-                fieldPath: pathParts.filter(p => p.length > 0),
+            pathParts.pop();
+            const fields = await this.config.getFields({
+                schema: this.schemaName,
+                fieldPath: pathParts.filter((part) => part.length > 0),
                 type: 'field'
             });
-            const allOptions = [...fields, ...KEYWORDS.filter(k => ['not'].includes(k.label))];
+            const allOptions = [...fields, ...KEYWORDS.filter(keyword => ['not'].includes(keyword.label))];
             return {
-                from: pos - partial.length,
+                from: this.position - partial.length,
                 options: allOptions,
                 validFor: /^[\w]*$/
             };
         }
-        // Check if we're after a field name (operator position)
-        const afterFieldMatch = textBeforeInLine.match(/\b([\w.]+)\s+(\S*)$/);
+    }
+    async listOperators() {
+        const afterFieldMatch = this.textBeforeInLine.match(/\b([\w.]+)\s+(\S*)$/);
         if (afterFieldMatch && !['where', 'and', 'or', 'not', 'in', 'like', 'all'].includes(afterFieldMatch[1])) {
             const partial = afterFieldMatch[2];
             return {
-                from: pos - partial.length,
-                options: [...OPERATORS,
+                from: this.position - partial.length,
+                options: [
+                    ...OPERATORS,
                     { label: 'in', type: 'keyword', info: 'Check if value is in list', detail: undefined },
                     { label: 'like', type: 'keyword', info: 'Pattern matching', detail: undefined }
                 ],
                 validFor: /^[=!<>]*$/
             };
         }
-        // Check if we're in a where clause (keywords and operators)
-        if (/\bwhere\b/.test(textBefore)) {
-            const partial = textBeforeInLine.match(/\w+$/)?.[0] || '';
+    }
+    async listKeywords() {
+        if (/\bwhere\b/.test(this.textBefore)) {
+            const partial = this.textBeforeInLine.match(/\w+$/)?.[0] || '';
             return {
-                from: pos - partial.length,
+                from: this.position - partial.length,
                 options: KEYWORDS.filter(k => !['all'].includes(k.label)),
                 validFor: /^\w*$/
             };
         }
+    }
+    async getCompletion() {
+        const RULES = [
+            this.listCommands.bind(this),
+            this.listSchemas.bind(this),
+            this.listNestedFields.bind(this),
+            this.listFields.bind(this),
+            this.listKeywordOperators.bind(this),
+            this.listOperators.bind(this),
+            this.listKeywords.bind(this),
+        ];
+        for (const rule of RULES) {
+            try {
+                const match = await rule();
+                if (match) {
+                    return match;
+                }
+            }
+            catch (error) {
+                if (error instanceof MissingRequiredSchema) {
+                    return null;
+                }
+                throw error;
+            }
+        }
         return null;
+    }
+}
+function loupeCompletion(config) {
+    return async (context) => {
+        const matcher = new Matcher(config, context);
+        return await matcher.getCompletion();
     };
 }
 
-/**
- * Loupe language definition for CodeMirror.
- */
 const loupeLanguage = LRLanguage.define({
     name: 'loupe',
     parser: parser.configure({
@@ -221,9 +254,6 @@ const loupeLanguage = LRLanguage.define({
             loupeHighlighting
         ]
     }),
-    languageData: {
-        commentTokens: { line: '#' }
-    }
 });
 /**
  * Loupe language support extension for CodeMirror.

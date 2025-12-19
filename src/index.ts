@@ -35,6 +35,33 @@ export const loupeLanguage = LRLanguage.define({
   }),
 });
 
+
+interface Association {
+  [key: string]: number;
+}
+
+interface LoupeMapping {
+  associations: Association
+  fields: string[]
+}
+
+/**
+ * Converts a server provided field mapping to codemirror
+ *
+ * Expected return from the service is:
+ *
+ * - `associations`: Key / value mapping of field: Related type
+ * - `fields`: Fields directly on the schema
+ */
+export function toCodemirrorFields(mapping: LoupeMapping) {
+  const associations = Object.entries(mapping.associations).map(([key, value]) => ({ label: key, detail: value, type: 'method' }))
+  const fields = mapping.fields.map(field => ({ label: field, type: 'property' }))
+  return [
+    ...associations,
+    ...fields
+  ]
+}
+
 /**
  * Loupe language support extension for CodeMirror.
  *
@@ -55,3 +82,4 @@ export const loupeLanguage = LRLanguage.define({
 export function loupe() {
   return new LanguageSupport(loupeLanguage);
 }
+

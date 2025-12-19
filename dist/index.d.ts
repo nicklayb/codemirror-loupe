@@ -1,8 +1,5 @@
 import { LRLanguage, LanguageSupport } from '@codemirror/language';
 export { loupeCompletion, type LoupeCompletionConfig, type LoupeCompletionContext, type SchemaProvider, type FieldProvider } from './autocomplete.js';
-/**
- * Loupe language definition for CodeMirror.
- */
 export declare const loupeLanguage: LRLanguage;
 /**
  * Loupe language support extension for CodeMirror.
