@@ -13,10 +13,14 @@ export type FieldProvider = (context: LoupeCompletionContext) => Completion[] | 
 
 export type CommandProvider = () => Completion[] | Promise<Completion[]>
 
+export type AutocompleteEnabled = (rawText: string) => boolean
+
 export interface LoupeCompletionConfig {
   getCommands: CommandProvider;
   getSchemas: SchemaProvider;
   getFields: FieldProvider;
+  startAt: number,
+  enabled: AutocompleteEnabled
 }
 
 const KEYWORDS: Completion[] = [
@@ -61,19 +65,23 @@ class Matcher {
   private lineText;
   private cursorInLine;
   private textBeforeInLine;
+  private startAt;
+  private rawText;
   private command: string | null = null;
   private schemaName: string | null = null;
 
   constructor(config: LoupeCompletionConfig, context: CompletionContext) {
     const { state, pos } = context;
+    this.startAt = config.startAt || 0
 
     this.config = config
     this.position = pos;
-    this.textBefore = state.doc.sliceString(0, pos);
+    this.rawText = state.doc.toString();
+    this.textBefore = state.doc.sliceString(this.startAt, pos);
     this.line = state.doc.lineAt(pos);
-    this.lineText = this.line.text;
+    this.lineText = this.line.text.slice(this.startAt);
     this.cursorInLine = pos - this.line.from;
-    this.textBeforeInLine = this.lineText.slice(0, this.cursorInLine);
+    this.textBeforeInLine = this.lineText.slice(this.startAt, this.cursorInLine);
   }
 
   extractSchema() {
@@ -230,31 +238,35 @@ class Matcher {
   }
 
   async getCompletion() {
-    const RULES = [
-      this.listCommands.bind(this),
-      this.listSchemas.bind(this),
-      this.listNestedFields.bind(this),
-      this.listFields.bind(this),
-      this.listKeywordOperators.bind(this),
-      this.listOperators.bind(this),
-      this.listKeywords.bind(this),
-    ]
+    const enabled = this.config.enabled || (() => true)
+    if (enabled(this.rawText)) {
+      const RULES = [
+        this.listCommands.bind(this),
+        this.listSchemas.bind(this),
+        this.listNestedFields.bind(this),
+        this.listFields.bind(this),
+        this.listKeywordOperators.bind(this),
+        this.listOperators.bind(this),
+        this.listKeywords.bind(this),
+      ]
 
-    for (const rule of RULES) {
-      try {
-        const match = await rule()
+      for (const rule of RULES) {
+        try {
+          const match = await rule()
 
-        if (match) {
-          return match
+          if (match) {
+            return match
+          }
+        } catch (error: any) {
+          if (error instanceof MissingRequiredSchema || error instanceof MissingRequiredCommand) {
+            return null
+          }
+          throw error
         }
-      } catch (error: any) {
-        if (error instanceof MissingRequiredSchema || error instanceof MissingRequiredCommand) {
-          return null
-        }
-        throw error
       }
-    }
 
+      return null
+    }
     return null
   }
 }

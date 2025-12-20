@@ -1,5 +1,5 @@
-import { EditorView, basicSetup } from 'codemirror';
-import { autocompletion } from '@codemirror/autocomplete';
+import { EditorView, minimalSetup } from 'codemirror';
+import { autocompletion, closeBrackets } from '@codemirror/autocomplete';
 import { loupe, loupeCompletion, toCodemirrorFields } from '../src/index.ts';
 
 const SCHEMAS = {
@@ -47,7 +47,7 @@ const COMMANDS = [
   { label: 'fetch', type: 'enum', info: 'Fetch records' },
   { label: 'list', type: 'enum', info: 'List records' },
   { label: 'search', type: 'enum', info: 'Search records' }
-]
+]//.map((command) => ({ ...command, label: `'${command.label}` }))
 
 const AVAILABLE_SCHEMAS = Object.entries(SCHEMAS).map(([key, { info }]) => ({
   label: key, type: 'type', info
@@ -71,7 +71,7 @@ const getFields = (schemaKey, fieldPath) => {
 const view = new EditorView({
   doc: '',
   extensions: [
-    basicSetup,
+    minimalSetup,
     loupe(),
     autocompletion({
       override: [loupeCompletion({
@@ -83,8 +83,13 @@ const view = new EditorView({
           const { schema, fieldPath } = context;
 
           return getFields(schema, fieldPath)
-        }
-      })]
+        },
+
+        startAt: 1,
+
+        enabled: (rawText) => rawText.startsWith("'")
+      })],
+
     }),
     EditorView.theme({
       '&': {
@@ -105,7 +110,9 @@ const view = new EditorView({
       '.cm-activeLine': {
         backgroundColor: '#f8fafc'
       }
-    })
+    }),
+
+    closeBrackets(),
   ],
   parent: document.querySelector('#editor')
 });

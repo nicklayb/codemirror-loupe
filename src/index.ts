@@ -33,6 +33,9 @@ export const loupeLanguage = LRLanguage.define({
       loupeHighlighting
     ]
   }),
+  languageData: {
+    closeBrackets: { brackets: ['[', '{', '"', '('] }
+  }
 });
 
 
