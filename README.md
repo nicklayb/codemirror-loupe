@@ -32,7 +32,7 @@ npm install @nicklayb/codemirror-loupe
 
 ```typescript
 import { EditorView, basicSetup } from 'codemirror';
-import { loupe } from '@nicklayb/codemirror-lang-loupe';
+import { loupe } from '@nicklayb/codemirror-loupe';
 
 new EditorView({
   doc: 'get User where email = "user@example.com"',
@@ -45,7 +45,7 @@ new EditorView({
 
 ```typescript
 import { EditorView, basicSetup } from 'codemirror';
-import { loupe } from '@nicklayb/codemirror-lang-loupe';
+import { loupe } from '@nicklayb/codemirror-loupe';
 
 new EditorView({
   doc: 'get all Post where status = "published"',
@@ -68,7 +68,7 @@ Enable smart, dynamic autocompletion with callback functions. This allows you to
 ```typescript
 import { EditorView, basicSetup } from 'codemirror';
 import { autocompletion } from '@codemirror/autocomplete';
-import { loupe, loupeCompletion } from '@nicklayb/codemirror-lang-loupe';
+import { loupe, loupeCompletion } from '@nicklayb/codemirror-loupe';
 
 new EditorView({
   doc: 'get User where ',
@@ -121,6 +121,29 @@ new EditorView({
   parent: document.querySelector('#editor')
 });
 ```
+
+### With a Schema Manifest
+
+If your server outputs a manifest, pass it directly. The format is `{ SchemaName: { associations: { name: 'OtherSchema' }, fields: ['field'] } }`. An optional `info` string per schema is shown in the schema list.
+
+```typescript
+import { loupe, loupeManifestCompletion } from '@nicklayb/codemirror-loupe';
+
+const manifest = await fetch('/loupe/manifest').then((response) => response.json());
+
+autocompletion({
+  override: [
+    loupeManifestCompletion(manifest, {
+      getCommands: () => [{ label: 'get', type: 'keyword' }]
+      // optional: startAt, enabled
+    })
+  ]
+});
+```
+
+You can also pass the source to `loupe({ completion })`. It registers as language data, so `autocompletion()` finds it without `override`.
+
+Association paths (`posts.author.`) resolve through the manifest. Unknown paths give no suggestions. For custom wiring, use `manifestSchemas(manifest)` and `manifestFields(manifest)` with `loupeCompletion`.
 
 **Autocompletion features:**
 - **Fully callback-based**: Provide commands, schemas, and fields dynamically at runtime
@@ -237,6 +260,21 @@ npm run build
 - `npm run build:parser` - Generate the Lezer parser from grammar
 - `npm run build` - Build the library (runs parser generation + rollup)
 - `npm run dev` - Run the example app in development mode
+- `npm test` - Run the test suite
+- `npm run loupe:fetch` - Download the pinned Loupe release and extract its example queries
+
+### Releasing
+
+Bump `version` in `package.json` and merge to `main`. The `Release` workflow checks whether the tag `v<version>` exists. If it does not, it runs CI, publishes to npm, then creates the tag and a GitHub release. It needs an `NPM_TOKEN` repository secret.
+
+### Loupe Compatibility
+
+`loupe.json` pins the Loupe git tag this grammar targets. `npm run loupe:fetch` downloads that tag into `.loupe/` and extracts the `@case` queries from Loupe's tests and the terminals from `loupe_parser.yrl`. `npm test` then checks that:
+
+- every upstream query parses without errors with the local parser;
+- Loupe has not added a parser terminal that `src/grammar.lezer` does not cover.
+
+Set `LOUPE_REF=main` (or any tag or branch) to test another version. When `.loupe/` is missing, the compatibility tests are skipped. CI also runs against `main` every week.
 
 ### Project Structure
 

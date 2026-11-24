@@ -6,15 +6,31 @@ import {
   foldNodeProp,
   foldInside
 } from '@codemirror/language';
+import type { CompletionSource } from '@codemirror/autocomplete';
 import { loupeHighlighting } from './highlight.js';
+import { loupeCompletion, type LoupeCompletionConfig } from './autocomplete.js';
 
 export {
   loupeCompletion,
   type LoupeCompletionConfig,
   type LoupeCompletionContext,
   type SchemaProvider,
-  type FieldProvider
+  type FieldProvider,
+  type CommandProvider,
+  type AutocompleteEnabled
 } from './autocomplete.js';
+
+export {
+  loupeManifestCompletion,
+  manifestSchemas,
+  manifestFields,
+  resolveSchema,
+  toCodemirrorFields,
+  type LoupeManifest,
+  type LoupeManifestOptions,
+  type LoupeSchemaManifest,
+  type LoupeFieldSet
+} from './manifest.js';
 
 export const loupeLanguage = LRLanguage.define({
   name: 'loupe',
@@ -34,46 +50,26 @@ export const loupeLanguage = LRLanguage.define({
     ]
   }),
   languageData: {
+    commentTokens: { line: '#' },
     closeBrackets: { brackets: ['[', '{', '"', '('] }
   }
 });
 
 
-interface Association {
-  [key: string]: number;
-}
-
-interface LoupeMapping {
-  associations: Association
-  fields: string[]
-}
-
-/**
- * Converts a server provided field mapping to codemirror
- *
- * Expected return from the service is:
- *
- * - `associations`: Key / value mapping of field: Related type
- * - `fields`: Fields directly on the schema
- */
-export function toCodemirrorFields(mapping: LoupeMapping) {
-  const associations = Object.entries(mapping.associations).map(([key, value]) => ({ label: key, detail: value, type: 'method' }))
-  const fields = mapping.fields.map(field => ({ label: field, type: 'property' }))
-  return [
-    ...associations,
-    ...fields
-  ]
+export interface LoupeConfig {
+  /** Completion source, or a config for `loupeCompletion`. Registered as language data. */
+  completion?: CompletionSource | LoupeCompletionConfig;
 }
 
 /**
  * Loupe language support extension for CodeMirror.
  *
- * @returns A LanguageSupport instance for the Loupe query language
+ * With `completion`, `autocompletion()` picks the source up without `override`.
  *
  * @example
  * ```typescript
  * import { EditorView, basicSetup } from 'codemirror';
- * import { loupe } from '@nicklayb/codemirror-lang-loupe';
+ * import { loupe } from '@nicklayb/codemirror-loupe';
  *
  * new EditorView({
  *   doc: 'get User where email = "user@example.com"',
@@ -82,7 +78,14 @@ export function toCodemirrorFields(mapping: LoupeMapping) {
  * });
  * ```
  */
-export function loupe() {
-  return new LanguageSupport(loupeLanguage);
+export function loupe(config: LoupeConfig = {}) {
+  const { completion } = config;
+  const extensions = completion
+    ? [
+        loupeLanguage.data.of({
+          autocomplete: typeof completion === 'function' ? completion : loupeCompletion(completion)
+        })
+      ]
+    : [];
+  return new LanguageSupport(loupeLanguage, extensions);
 }
-

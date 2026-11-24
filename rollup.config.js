@@ -3,11 +3,10 @@ import resolve from '@rollup/plugin-node-resolve';
 
 export default {
   input: 'src/index.ts',
-  output: {
-    dir: 'dist',
-    format: 'esm',
-    sourcemap: true
-  },
+  output: [
+    { dir: 'dist', format: 'esm', sourcemap: true },
+    { file: 'dist/index.cjs', format: 'cjs', sourcemap: true }
+  ],
   plugins: [
     resolve(),
     typescript({
@@ -15,6 +14,7 @@ export default {
     })
   ],
   external: [
+    '@codemirror/autocomplete',
     '@codemirror/language',
     '@codemirror/state',
     '@codemirror/view',

@@ -19,8 +19,8 @@ export interface LoupeCompletionConfig {
   getCommands: CommandProvider;
   getSchemas: SchemaProvider;
   getFields: FieldProvider;
-  startAt: number,
-  enabled: AutocompleteEnabled
+  startAt?: number;
+  enabled?: AutocompleteEnabled;
 }
 
 const KEYWORDS: Completion[] = [
@@ -81,7 +81,7 @@ class Matcher {
     this.line = state.doc.lineAt(pos);
     this.lineText = this.line.text.slice(this.startAt);
     this.cursorInLine = pos - this.line.from;
-    this.textBeforeInLine = this.lineText.slice(this.startAt, this.cursorInLine);
+    this.textBeforeInLine = this.lineText.slice(0, Math.max(0, this.cursorInLine - this.startAt));
   }
 
   extractSchema() {

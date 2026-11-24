@@ -3,7 +3,8 @@
 }
 
 Statement {
-  Command Quantifier? Schema Parameters? WhereClause?
+  Command Quantifier? Schema Parameters? WhereClause? |
+  Command Quantifier? WhereClause
 }
 
 Command {
@@ -19,23 +20,24 @@ Predicate {
 }
 
 OrPredicate {
-  AndPredicate (or AndPredicate)*
+  AndPredicate (kw<"or"> AndPredicate)*
 }
 
 AndPredicate {
-  NotPredicate (and NotPredicate)*
+  NotPredicate (kw<"and"> NotPredicate)*
 }
 
 NotPredicate {
-  not? ComparisonPredicate
+  kw<"not">? ComparisonPredicate
 }
 
 ComparisonPredicate {
   "(" Predicate ")" |
-  FieldGroup ComparisonOp Value |
-  FieldGroup InOp List |
-  FieldGroup LikeOp String |
-  FieldPathBase ":" kw<"empty">
+  FieldGroup kw<"not">? ComparisonOp Value |
+  FieldGroup kw<"not">? InOp List |
+  FieldGroup kw<"not">? LikeOp String |
+  FieldGroup kw<"not">? Empty |
+  FieldGroup
 }
 
 FieldGroup {
@@ -59,7 +61,11 @@ FieldVariant {
 }
 
 PathBinding {
-  "[" Identifier ("," Identifier)* "]"
+  "[" PathPart ("," PathPart)* "]"
+}
+
+PathPart {
+  Identifier | String
 }
 
 Schema {
@@ -75,11 +81,15 @@ ParameterList {
 }
 
 Parameter {
-  Identifier ":" Value
+  Identifier ":" (Value | Parameters)
 }
 
 Value {
-  String | Number | Boolean | Identifier
+  String | Sigil | NumberValue | bool<"true"> | bool<"false"> | Identifier
+}
+
+NumberValue {
+  Number Multiplier?
 }
 
 List {
@@ -96,7 +106,7 @@ Range {
 }
 
 Multiplier {
-  multiplierK | multiplierM
+  unit<"k"> | unit<"m"> | unit<"K"> | unit<"M">
 }
 
 ComparisonOp {
@@ -124,29 +134,15 @@ PathSeparator {
 
   Identifier { $[a-zA-Z_]$[a-zA-Z0-9_]* }
 
-  Number { $[0-9]+ }
+  Number { "-"? $[0-9]+ ("." $[0-9]+)? }
+
+  Sigil { "~" $[a-zA-Z] '"' (!["\\] | "\\" _)* '"' }
+
+  Empty { ":empty" }
 
   String {
     '"' (!["\\] | "\\" _)* '"'
   }
-
-  Boolean {
-    "true" | "false"
-  }
-
-  and { "and" }
-  or { "or" }
-  not { "not" }
-
-  multiplierK { "k" }
-  multiplierM { "m" }
-
-  @precedence { Boolean, Identifier }
-  @precedence { and, Identifier }
-  @precedence { or, Identifier }
-  @precedence { not, Identifier }
-  @precedence { multiplierK, Identifier }
-  @precedence { multiplierM, Identifier }
 
   "(" ")" "[" "]" "{" "}"
   "=" "!=" "<" ">" "<=" ">="
@@ -155,3 +151,7 @@ PathSeparator {
 }
 
 kw<term> { @specialize[@name={term}]<Identifier, term> }
+
+bool<term> { @specialize[@name=Boolean]<Identifier, term> }
+
+unit<term> { @specialize[@name=Unit]<Identifier, term> }

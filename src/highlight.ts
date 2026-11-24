@@ -6,6 +6,8 @@ export const loupeHighlighting = styleTags({
   Identifier: t.variableName,
   Schema: t.typeName,
   String: t.string,
+  Sigil: t.regexp,
+  Empty: t.keyword,
   Number: t.number,
   Boolean: t.bool,
   Comment: t.lineComment,
@@ -22,7 +24,7 @@ export const loupeHighlighting = styleTags({
   '..': t.operator,
   '|': t.separator,
   '&': t.separator,
-  'multiplierK multiplierM': t.unit,
+  Unit: t.unit,
   FieldVariant: t.modifier,
   PathBinding: t.special(t.propertyName)
 });
