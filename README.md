@@ -265,7 +265,7 @@ npm run build
 
 ### Releasing
 
-Bump `version` in `package.json` and merge to `main`. The `Release` workflow checks whether the tag `v<version>` exists. If it does not, it runs CI, publishes to npm, then creates the tag and a GitHub release. It needs an `NPM_TOKEN` repository secret.
+Bump `version` in `package.json` and merge to `main`. The `Release` workflow checks whether the tag `v<version>` exists. If it does not, it runs CI, publishes to npm, then creates the tag and a GitHub release. Publishing uses npm trusted publishing (OIDC), so no npm token is stored. The package must list `release.yml` as its trusted publisher on npmjs.com.
 
 ### Loupe Compatibility
 
